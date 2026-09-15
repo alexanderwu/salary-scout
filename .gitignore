@@ -1,0 +1,13 @@
+# Scraped data — the app reads it, git never tracks it (root data/ only)
+/data/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+!/uv.lock
+
+# Repository-local tool caches
+/.cache/
+/.pnpm-store/
+/.uv-cache/
