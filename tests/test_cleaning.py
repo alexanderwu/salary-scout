@@ -31,3 +31,17 @@ def test_filter_plausible_compensation():
     )
     kept = filter_plausible_compensation(df)
     assert kept.index.tolist() == [0]
+
+
+def test_strip_salary_mentions_bare_forms():
+    text = (
+        "Salary: 100k-150k. Target 150-200k+ plus equity. Range: $70,000 -100k. "
+        "The pay range for this role is: 155000.00 - 173500.00 USD per year. "
+        "Max rate 157500 start rate 98600. Founded in 1999, 500 employees, k8s, 401(k)."
+    )
+    out = strip_salary_mentions(text)
+    for leaked in ["100k", "150k", "200k", "150-", "155000", "173500", "157500", "98600", "70,000"]:
+        assert leaked not in out, leaked
+    assert "229400" not in strip_salary_mentions("range is $200,000-229400USD.")
+    for kept in ["1999", "500 employees", "k8s", "401(k)"]:
+        assert kept in out, kept

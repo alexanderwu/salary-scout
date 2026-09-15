@@ -24,9 +24,23 @@ MAX_YEARLY = 1_000_000
 MAX_SPREAD_RATIO = 3.0
 
 # Money patterns. Order matters: ranges first so the whole span is replaced at once.
-_AMOUNT = r"(?:USD|US\$|\$)?\s?\d{1,3}(?:,\d{3})+(?:\.\d+)?|(?:USD|US\$|\$)\s?\d+(?:\.\d+)?\s?[kK]?"
-_RANGE = rf"(?:{_AMOUNT})\s*(?:-|–|—|to|and)\s*(?:{_AMOUNT})"
-_SALARY_RE = re.compile(rf"{_RANGE}|{_AMOUNT}", re.IGNORECASE)
+# Four shapes of a single amount:
+#   comma-grouped, optional currency prefix   $120,000  120,000.00  USD 95,000
+#   currency prefix, any digits, optional k   $120000  $95k  US$ 80.5k
+#   bare 2-3 digits with a k suffix           100k  62.5k   (as in "100k-150k")
+#   bare 5-6 digit integer, optional cents    155000.00  198000  229400USD
+# The last shape also eats zip codes and requisition numbers, which carry no pay signal.
+_AMOUNT = (
+    r"(?:USD|US\$|\$)?\s?\d{1,3}(?:,\d{3})+(?:\.\d+)?"
+    r"|(?:USD|US\$|\$)\s?\d+(?:\.\d+)?\s?[kK]?"
+    r"|\b\d{2,3}(?:\.\d+)?\s?[kK]\b"
+    r"|\b\d{5,6}(?:\.\d{1,2})?(?:\s?usd)?\b"
+)
+_SEP = r"\s*(?:-|–|—|to|and)\s*"
+_RANGE = rf"(?:{_AMOUNT}){_SEP}(?:{_AMOUNT})"
+# "150-200k": the k applies to both ends, so the first number alone is an amount too.
+_RANGE_SHARED_K = rf"\b\d{{2,3}}(?:\.\d+)?{_SEP}\d{{2,3}}(?:\.\d+)?\s?[kK]\b"
+_SALARY_RE = re.compile(rf"{_RANGE_SHARED_K}|{_RANGE}|{_AMOUNT}", re.IGNORECASE)
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")
 
