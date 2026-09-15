@@ -11,3 +11,4 @@ __pycache__/
 /.cache/
 /.pnpm-store/
 /.uv-cache/
+models/
