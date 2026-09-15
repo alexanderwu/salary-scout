@@ -1,6 +1,6 @@
 # Handoff: Salary Scout
 
-Last updated: 2026-09-15, after step 4 (benchmark) on `main`.
+Last updated: 2026-09-15, after step 6 (blog post) on `main`.
 
 Read this first in a new session. It says what exists, what was decided, and what to
 build next. Decisions are recorded in `docs/adr/`; do not re-litigate them without
@@ -27,11 +27,14 @@ Done and committed:
 | Feature blocks, masking, block dropout, leakage check | `src/salary_scout/features.py` |
 | Executed EDA notebook, 13 figures, decisions section | `notebooks/01_eda.ipynb` |
 | Executed benchmark notebook, findings section | `notebooks/02_benchmark.ipynb` |
+| Technical report | `docs/report.md` |
+| Blog post draft | `docs/blog.md` |
+| Figures exported from both notebooks (17 PNGs) | `docs/figures/` |
 | Benchmark result tables (per fold, model, pattern) | `docs/results/benchmark_*.csv` |
 | Data dictionary | `docs/jobs_data_dictionary.md` |
 | Eleven ADRs (ten accepted, one proposed) | `docs/adr/` |
 
-Not started: report, blog post, both apps. No model training code lives in `src/` yet;
+Not started: both apps. No model training code lives in `src/` yet;
 the benchmark notebook defines the models inline (`fit_models`, `PairModel`).
 
 ## Commands
@@ -146,39 +149,19 @@ copy of each training row appended (its own `FeatureBlocks` fitted on the augmen
 
 ## Resume here (state at the end of the 2026-09-15 session)
 
-`notebooks/02_benchmark.ipynb` is committed **without outputs**. The first execution
-succeeded and produced the CSVs in `docs/results/` and the numbers above; the notebook was
-then rebuilt to fix two charts (legend overlapping bars; `$` rendered as math text) and to
-add the findings section, and a second execution was started at 02:57 in the background.
-It writes the notebook only when it finishes (about 40 minutes).
-
-First thing next session:
-
-1. Check whether the notebook has outputs (`git status` shows it modified, or count cells
-   with outputs). If yes: open the two charts in sections 4 and 8, confirm the numbers
-   still match the findings cell and this handoff, then commit.
-2. If no outputs: run the nbconvert command in the Commands section (about 40 minutes)
-   and then do step 1. Results are deterministic (fixed seeds), so the CSVs should not
-   change beyond noise.
-3. Then continue with step 5 below.
+Steps 5 and 6 are done and committed. `notebooks/02_benchmark.ipynb` is committed with
+outputs; the second execution reproduced the result CSVs byte for byte. Next is step 7:
+move the model code into `src/` and build the browser demo (see below). The blog post is
+a first draft and will need its final section rewritten once the demo URL exists.
 
 ## Next steps
 
-### Step 5: technical report (`docs/report.md`)
+### Step 5 and 6: report and blog (done)
 
-Audience: a technically literate reader (hiring manager, data scientist) who has not
-seen the notebooks. Sections: problem and data; target and cleaning decisions with
-the drop counts; leakage and scrubbing; split protocol; feature blocks and masking;
-results (the table above, per pattern, plus holdout and company-held-out); what
-dropout costs; what the employer is worth; attributions with two or three examples;
-limitations (disclosing employers only, US only, 2026 snapshot, IC roles, spread is
-weak); what the apps will and will not claim. Pull figures from the two notebooks
-(export PNGs to `docs/figures/`). Cite ADRs by number.
-
-### Step 6: blog post (`docs/blog.md`)
-
-General audience. One idea per section, one chart per idea. Lead with "the title alone
-predicts pay within about 23%" and the masking demo.
+`docs/report.md` and `docs/blog.md`. Figures are exported from the executed notebooks by a
+small script (session scratchpad) that maps notebook code-cell index to a slug; the map is:
+EDA cells 9, 19, 21, 27, 30, 32, 34, 35, 36, 37, 41, 42, 43 and benchmark cells 12, 19, 22.
+If a notebook is rebuilt, re-export and check the cell indices still line up.
 
 ### Step 7 and 8: apps
 
