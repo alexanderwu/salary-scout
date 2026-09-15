@@ -21,7 +21,7 @@ uv run jupyter lab
 - `src/salary_scout/` — library code (data loading, features, models, browser export)
 - `web/` — browser-only demo: static HTML and dependency-free JavaScript, model files in `web/model/`
 - `notebooks/` — exploratory analysis and benchmarks
-- `docs/` — data dictionary, report, blog post
+- `docs/` — data dictionary, report, blog post, user stories, UX review
 - `tests/` — unit tests (including a Node replay of the JavaScript port against Python fixtures)
 
 ## Roadmap
