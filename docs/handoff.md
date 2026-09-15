@@ -1,6 +1,6 @@
 # Handoff: Salary Scout
 
-Last updated: 2026-09-15, after step 3 (feature pipeline) on `main`.
+Last updated: 2026-09-15, after step 4 (benchmark) on `main`.
 
 Read this first in a new session. It says what exists, what was decided, and what to
 build next. Decisions are recorded in `docs/adr/`; do not re-litigate them without
@@ -26,10 +26,13 @@ Done and committed:
 | Derived table: scrub, targets, grouped time split, CV folds, Parquet | `src/salary_scout/dataset.py` |
 | Feature blocks, masking, block dropout, leakage check | `src/salary_scout/features.py` |
 | Executed EDA notebook, 13 figures, decisions section | `notebooks/01_eda.ipynb` |
+| Executed benchmark notebook, findings section | `notebooks/02_benchmark.ipynb` |
+| Benchmark result tables (per fold, model, pattern) | `docs/results/benchmark_*.csv` |
 | Data dictionary | `docs/jobs_data_dictionary.md` |
-| Eleven ADRs (nine accepted, two proposed) | `docs/adr/` |
+| Eleven ADRs (ten accepted, one proposed) | `docs/adr/` |
 
-Not started: benchmark notebook, report, blog post, both apps.
+Not started: report, blog post, both apps. No model training code lives in `src/` yet;
+the benchmark notebook defines the models inline (`fit_models`, `PairModel`).
 
 ## Commands
 
@@ -40,6 +43,7 @@ uv run ruff check src tests
 uv run python -m salary_scout.dataset     # rebuild data/derived.parquet (~30 s)
 uv run jupyter lab                        # interactive
 uv run jupyter nbconvert --to notebook --execute --inplace notebooks/01_eda.ipynb
+uv run jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeout=-1 notebooks/02_benchmark.ipynb   # ~40 min
 ```
 
 `data/jobs.duckdb` (1 GB) is git-ignored and must be present locally. The loader opens
@@ -51,7 +55,7 @@ is also git-ignored; `load_derived()` builds it on first use.
 - 27,098 postings, unique on `requisition_id`. Individual-contributor roles only,
   heavily data/analytics and software, 95% published April to September 2026.
 - 24,191 have a parsed salary; 23,824 survive the plausibility filter (USD, min ≥ 20k,
-  max ≤ 1M, max/min ≤ 3).
+  max ≤ 1M, max/min ≤ 3). Train 20,257, time-holdout test 3,567.
 - The exact salary figure appears in 67% of raw descriptions. After scrubbing, a row's
   own min or max figure survives in 0.02% of rows (5 of 23,824); the pipeline check
   fails above 0.1% (ADR 0009). Never featurise unscrubbed text: the derived table does not carry
@@ -60,9 +64,34 @@ is also git-ignored; `load_derived()` builds it on first use.
   Nearly 90% of postings have siblings. All splits must be grouped by it.
 - Salary disclosure varies by state from 77% to 99%, so the model learns the pricing
   behaviour of disclosing employers.
-- Metadata-only ridge on six categorical fields, grouped 5-fold: R² 0.48, log MAE 0.22
-  (about 25% typical error). This is the floor to beat.
 - `job_information_json` holds third-party user IDs and is excluded everywhere (ADR 0002).
+
+## Benchmark results (step 4, done)
+
+Grouped 5-fold CV on the training split, log MAE on `log_mid` (lower is better):
+
+| model | full | description only | metadata only | title only |
+|---|---|---|---|---|
+| median_by_category | 0.256 | 0.317 | 0.256 | 0.317 |
+| ridge_metadata | 0.212 | 0.325 | 0.212 | 0.325 |
+| ridge_all_blocks | 0.174 | 0.246 | 0.414 | 0.270 |
+| lgbm_all_blocks | 0.147 | 0.247 | 0.291 | 0.380 |
+| lgbm_block_dropout | 0.147 | 0.190 | 0.185 | 0.224 |
+
+- Time holdout, dropout model, full inputs: log MAE 0.144, MAPE 13.7%, R² 0.76,
+  range overlap 93%. CV: MAPE 15.0%, R² 0.74, overlap 84%.
+- Dropout cost on full inputs: −0.0002 ± 0.0009 log MAE. ADR 0007 confirmed and accepted.
+- Company-held-out folds: within 0.002 of the grouped CV for every model and pattern.
+  Recognising the employer adds almost nothing beyond company metadata and text.
+- `log_spread` MAE 0.115 (LightGBM) vs 0.157 (constant median).
+- Timing test: shrinking text hashes to 2^16 (description) and 2^14 (title) columns
+  changes log MAE by under 0.002. Use that for the browser model.
+- Per-fold tables: `docs/results/benchmark_grouped_cv.csv`, `benchmark_time_holdout.csv`,
+  `benchmark_company_heldout.csv`. Columns: protocol, fold, model, pattern, then metrics.
+
+Model settings used: LightGBM 800 trees, learning rate 0.05, 63 leaves, colsample 0.3,
+subsample 0.8, min_child_samples 20; ridge alpha 1.0; dropout p = 0.3 with one masked
+copy of each training row appended (its own `FeatureBlocks` fitted on the augmented frame).
 
 ## Decisions in force
 
@@ -74,7 +103,7 @@ is also git-ignored; `load_derived()` builds it on first use.
   grouped 5-fold CV for selection; company-held-out folds reported separately (ADR 0006).
 - Masking: five feature blocks (`title`, `description`, `role_meta`, `location`,
   `company`), one model trained with random block dropout, SHAP summed per block
-  (ADR 0007, proposed).
+  (ADR 0007, accepted after the benchmark).
 - Employer identity: smoothed target encoding of `company_name`, cross-fitted by
   collapse group; the feature transformer is fitted inside every fold (ADR 0010).
 - Single input: `data/derived.parquet` from `salary_scout.dataset` is the only
@@ -91,7 +120,6 @@ is also git-ignored; `load_derived()` builds it on first use.
   `primary_state`, `n_states`, `is_remote`. Works on one posting at inference time.
 - `add_targets`, `assign_splits`: `split` (train/test), `cv_fold` (0-4 by
   `collapse_key`, -1 on test), `company_fold` (0-4 by `company_name`, -1 on test).
-  Test = 3,567 rows, train = 20,257.
 - `load_derived()` / `write_derived()` persist `data/derived.parquet`.
 
 `salary_scout.features`:
@@ -103,7 +131,6 @@ is also git-ignored; `load_derived()` builds it on first use.
   attributions to per-block.
 - Default width is 463,742 sparse columns (title 2×2^16 hashed 1-2 grams, description
   2^18 + 2^16 hashed unigrams, capped at 30k chars). Fit on the train split takes 7 s.
-  Shrink `title_features` and `description_features` for the browser model.
 - Company name uses `GroupTargetEncoder`: smoothed mean of `log_mid`, cross-fitted by
   `collapse_key` inside `fit_transform` so siblings do not leak into each other, full
   encoding in `transform`. Consequence: `fit_transform(train)` and `transform(train)`
@@ -114,38 +141,64 @@ is also git-ignored; `load_derived()` builds it on first use.
   always leaves at least one block per row. Missing presence columns default to 1, and
   absent source columns (e.g. no `collapse_key` at inference) are filled with NaN.
 - `check_salary_leakage(derived)` returns the residual leak rate and raises above 0.1%.
+- Per-block attributions: `booster.predict(X, pred_contrib=True)` returns a sparse
+  matrix with one extra column (the expected value); pass the rest to `sum_by_block`.
+
+## Resume here (state at the end of the 2026-09-15 session)
+
+`notebooks/02_benchmark.ipynb` is committed **without outputs**. The first execution
+succeeded and produced the CSVs in `docs/results/` and the numbers above; the notebook was
+then rebuilt to fix two charts (legend overlapping bars; `$` rendered as math text) and to
+add the findings section, and a second execution was started at 02:57 in the background.
+It writes the notebook only when it finishes (about 40 minutes).
+
+First thing next session:
+
+1. Check whether the notebook has outputs (`git status` shows it modified, or count cells
+   with outputs). If yes: open the two charts in sections 4 and 8, confirm the numbers
+   still match the findings cell and this handoff, then commit.
+2. If no outputs: run the nbconvert command in the Commands section (about 40 minutes)
+   and then do step 1. Results are deterministic (fixed seeds), so the CSVs should not
+   change beyond noise.
+3. Then continue with step 5 below.
 
 ## Next steps
 
-### Step 4: benchmark notebook (`notebooks/02_benchmark.ipynb`)
+### Step 5: technical report (`docs/report.md`)
 
-Start from `load_derived()`; do not reload DuckDB. Models, in order: median by
-category (baseline), ridge on metadata, ridge on all blocks, LightGBM on all blocks
-without dropout, LightGBM with block dropout. Report per mask pattern (full, description
-only, metadata only, title only) on the grouped CV (`cv_fold`), then once on the time
-holdout (`split == "test"`), then company-held-out (`company_fold`). Record what dropout
-costs on full inputs; that number decides whether ADR 0007 stands. SHAP per block on a
-handful of examples via `FeatureBlocks.sum_by_block`.
+Audience: a technically literate reader (hiring manager, data scientist) who has not
+seen the notebooks. Sections: problem and data; target and cleaning decisions with
+the drop counts; leakage and scrubbing; split protocol; feature blocks and masking;
+results (the table above, per pattern, plus holdout and company-held-out); what
+dropout costs; what the employer is worth; attributions with two or three examples;
+limitations (disclosing employers only, US only, 2026 snapshot, IC roles, spread is
+weak); what the apps will and will not claim. Pull figures from the two notebooks
+(export PNGs to `docs/figures/`). Cite ADRs by number.
 
-Practical notes for the benchmark:
+### Step 6: blog post (`docs/blog.md`)
 
-- Fit `FeatureBlocks` inside each fold (the company encoder uses the target). Pass
-  `y=log_mid`; the second target is modelled on the same matrix.
-- LightGBM accepts the CSR matrix directly. Ridge on 460k sparse columns is fine with
-  the default solver. Consider `description_features=2**16` for speed while iterating.
-- The dropout model needs `dropout_blocks` applied to the training frame before
-  `fit_transform`, and the presence columns are then part of the matrix.
+General audience. One idea per section, one chart per idea. Lead with "the title alone
+predicts pay within about 23%" and the masking demo.
 
-### Later
+### Step 7 and 8: apps
 
-Report (`docs/report.md`), blog post (`docs/blog.md`), browser app, service app.
-Confirm or supersede ADRs 0007 and 0008 after the benchmark.
+Before the apps, move `fit_models` / `PairModel` out of the notebook into
+`src/salary_scout/models.py` with a `train_final()` that saves the dropout model and its
+`FeatureBlocks`. The browser build needs: hashing featuriser reimplemented in JS
+(murmurhash3_32, sklearn's token pattern, `alternate_sign=False`, binary, l2 norm),
+the company lookup table, the top-K tool vocabulary, and the ONNX export of a smaller
+LightGBM. Confirm or supersede ADR 0008 then.
 
 ## Working notes for the next session
 
 - Notebooks are generated by a builder script with `nbformat` and executed with
-  `nbconvert`, then committed with outputs. Keep that pattern; write the builder with
-  the Write tool, not a shell heredoc.
+  `nbconvert`, then committed with outputs. The builder for `02_benchmark.ipynb` lived in
+  the session scratchpad; the notebook itself is the source of truth. Keep that pattern;
+  write the builder with the Write tool, not a shell heredoc.
+- Smoke-test a notebook before the long run: exec its code cells on a 1,500-row sample
+  with tiny hash widths and 15 trees. The full benchmark run is about 40 minutes and
+  nbconvert only writes outputs at the end.
+- Matplotlib treats `$` in labels as math mode; write `\\$` in f-strings.
 - Heredocs in the Bash tool mangle backslashes and apostrophes in the content (a regex
   `\b` became a literal backspace). For any file edit involving prose or regex, write a
   small Python patch script with the Write tool and run it, or use the Write tool on

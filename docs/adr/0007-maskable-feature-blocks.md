@@ -1,7 +1,7 @@
 # 0007. Support masked inputs with grouped feature blocks and block dropout
 
 Date: 2026-09-15
-Status: Proposed
+Status: Accepted (confirmed by the benchmark in `notebooks/02_benchmark.ipynb`)
 
 ## Context
 
@@ -42,3 +42,20 @@ attributions (SHAP) are summed per block for the explanation view.
   compares against a no-dropout model on the full-input case to measure that cost.
 - If dropout proves too costly, option 1 becomes the fallback and this record is
   superseded.
+
+## Outcome (benchmark, 2026-09-15)
+
+Implemented as training on the original rows plus one copy of each row with blocks
+masked at probability 0.3 (at least one block kept). Grouped 5-fold CV, LightGBM,
+log MAE on `log_mid`:
+
+| pattern | no dropout | with dropout |
+|---|---|---|
+| full | 0.147 | 0.147 |
+| description only | 0.247 | 0.190 |
+| metadata only | 0.291 | 0.185 |
+| title only | 0.380 | 0.224 |
+
+The cost on full inputs is −0.0002 ± 0.0009, indistinguishable from zero. Without
+dropout, masked inputs are worse than the category-median baseline in two of three
+patterns. The decision stands; option 1 is not needed.
