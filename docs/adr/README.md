@@ -10,9 +10,12 @@ A decision is never edited after acceptance; if it changes, a new record superse
 | [0002](0002-exclude-user-identifiers.md) | Exclude third-party user identifiers from all derived data | Accepted |
 | [0003](0003-target-definition.md) | Predict log midpoint and log spread of the USD range | Accepted |
 | [0004](0004-drop-not-repair-implausible-pay.md) | Drop implausible compensation rows rather than repair them | Accepted |
-| [0005](0005-scrub-salary-mentions.md) | Scrub salary figures from text before featurisation | Accepted |
+| [0005](0005-scrub-salary-mentions.md) | Scrub salary figures from text before featurisation | Accepted, amended by 0009 |
 | [0006](0006-split-protocol.md) | Group splits by collapse key, hold out the newest postings | Accepted |
 | [0007](0007-maskable-feature-blocks.md) | Support masked inputs with grouped feature blocks and block dropout | Proposed |
 | [0008](0008-two-deployment-targets.md) | Ship a browser-only demo and a separate service deployment | Proposed |
+| [0009](0009-scrub-bare-salary-figures.md) | Extend salary scrubbing to bare figures | Accepted |
+| [0010](0010-company-target-encoding.md) | Encode employer identity with group-cross-fitted target encoding | Accepted |
+| [0011](0011-single-derived-table.md) | One derived table is the only input to modelling | Accepted |
 
 Template: [template.md](template.md).

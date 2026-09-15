@@ -27,7 +27,7 @@ Done and committed:
 | Feature blocks, masking, block dropout, leakage check | `src/salary_scout/features.py` |
 | Executed EDA notebook, 13 figures, decisions section | `notebooks/01_eda.ipynb` |
 | Data dictionary | `docs/jobs_data_dictionary.md` |
-| Eight ADRs (six accepted, two proposed) | `docs/adr/` |
+| Eleven ADRs (nine accepted, two proposed) | `docs/adr/` |
 
 Not started: benchmark notebook, report, blog post, both apps.
 
@@ -54,7 +54,7 @@ is also git-ignored; `load_derived()` builds it on first use.
   max ≤ 1M, max/min ≤ 3).
 - The exact salary figure appears in 67% of raw descriptions. After scrubbing, a row's
   own min or max figure survives in 0.02% of rows (5 of 23,824); the pipeline check
-  fails above 0.1%. Never featurise unscrubbed text: the derived table does not carry
+  fails above 0.1% (ADR 0009). Never featurise unscrubbed text: the derived table does not carry
   the raw text columns at all.
 - `collapse_key` groups sibling postings (same role, different location or level).
   Nearly 90% of postings have siblings. All splits must be grouped by it.
@@ -75,6 +75,10 @@ is also git-ignored; `load_derived()` builds it on first use.
 - Masking: five feature blocks (`title`, `description`, `role_meta`, `location`,
   `company`), one model trained with random block dropout, SHAP summed per block
   (ADR 0007, proposed).
+- Employer identity: smoothed target encoding of `company_name`, cross-fitted by
+  collapse group; the feature transformer is fitted inside every fold (ADR 0010).
+- Single input: `data/derived.parquet` from `salary_scout.dataset` is the only
+  thing notebooks and apps read; raw text is not in it (ADR 0011).
 - Deployment: browser demo on ONNX Runtime Web with a hashing text featuriser, plus a
   FastAPI service in Docker for the full model (ADR 0008, proposed). This means the text
   featuriser must be hash-based from the first benchmark.
