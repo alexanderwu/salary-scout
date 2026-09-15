@@ -158,7 +158,5 @@ Confirm or supersede ADRs 0007 and 0008 after the benchmark.
 - Chart style in the notebook: single blue `#2a78d6` for magnitude, recessive grey
   grid, left-aligned bold titles, `orientation="horizontal"` for boxplots
   (`vert=` is deprecated in matplotlib 3.11).
-- Uncommitted edits to `docs/jobs_data_dictionary.md` (source URL) and
-  `notebooks/01_eda.ipynb` predate step 3 and were left out of the step 3 commit.
 - Commit after each step with the attribution line
   `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
