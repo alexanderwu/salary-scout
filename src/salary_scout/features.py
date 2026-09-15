@@ -120,6 +120,9 @@ def mask_blocks(
             raise KeyError(f"unknown block {block!r}; expected one of {BLOCK_NAMES}")
         for col in BLOCKS[block]:
             if col in X:
+                # Raw postings may carry int or bool columns, which cannot hold NaN.
+                if pd.api.types.is_integer_dtype(X[col]) or pd.api.types.is_bool_dtype(X[col]):
+                    X[col] = X[col].astype("float64")
                 X.loc[row_sel, col] = np.nan
         X.loc[row_sel, presence_column(block)] = 0.0
     return X

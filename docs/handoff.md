@@ -1,6 +1,6 @@
 # Handoff: Salary Scout
 
-Last updated: 2026-09-15, after step 6 (blog post) on `main`.
+Last updated: 2026-09-15, after step 7 (browser demo) on `main`.
 
 Read this first in a new session. It says what exists, what was decided, and what to
 build next. Decisions are recorded in `docs/adr/`; do not re-litigate them without
@@ -32,21 +32,31 @@ Done and committed:
 | Figures exported from both notebooks (17 PNGs) | `docs/figures/` |
 | Benchmark result tables (per fold, model, pattern) | `docs/results/benchmark_*.csv` |
 | Data dictionary | `docs/jobs_data_dictionary.md` |
-| Eleven ADRs (ten accepted, one proposed) | `docs/adr/` |
+| Benchmark models as library code, deployable `SalaryModel`, `train_final()` | `src/salary_scout/models.py` |
+| Browser export: featuriser spec, flattened trees, metrics, fixtures | `src/salary_scout/export.py` |
+| Browser demo (static HTML, dependency-free JS) and its model files | `web/`, `web/model/` |
+| Node replay of the JS port against Python fixtures | `web/test/verify.mjs`, `tests/test_web.py` |
+| GitHub Pages workflow for `web/` (not yet enabled in repo settings) | `.github/workflows/pages.yml` |
+| Twelve ADRs, all accepted | `docs/adr/` |
 
-Not started: both apps. No model training code lives in `src/` yet;
-the benchmark notebook defines the models inline (`fit_models`, `PairModel`).
+Not started: the service deployment (step 8). The benchmark notebook still defines
+its models inline; `models.py` holds the same code, and the notebook was not rebuilt
+to import it (its outputs are the committed record).
 
 ## Commands
 
 ```sh
 uv sync --extra dev                       # create .venv and install everything
-uv run pytest -q                          # 19 tests, ~3 s (needs data/jobs.duckdb)
+uv run pytest -q                          # 34 tests, ~4 s (needs data/jobs.duckdb and node)
 uv run ruff check src tests
 uv run python -m salary_scout.dataset     # rebuild data/derived.parquet (~30 s)
 uv run jupyter lab                        # interactive
 uv run jupyter nbconvert --to notebook --execute --inplace notebooks/01_eda.ipynb
 uv run jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeout=-1 notebooks/02_benchmark.ipynb   # ~40 min
+uv run python -m salary_scout.models      # train the full model -> models/salary_model.joblib (git-ignored, ~2 min)
+uv run python -m salary_scout.export      # refit the browser model, write web/model/ (~3 min)
+node web/test/verify.mjs                  # JS port vs Python fixtures (also run by pytest when node exists)
+python -m http.server -d web 8000         # serve the demo locally
 ```
 
 `data/jobs.duckdb` (1 GB) is git-ignored and must be present locally. The loader opens
@@ -111,9 +121,10 @@ copy of each training row appended (its own `FeatureBlocks` fitted on the augmen
   collapse group; the feature transformer is fitted inside every fold (ADR 0010).
 - Single input: `data/derived.parquet` from `salary_scout.dataset` is the only
   thing notebooks and apps read; raw text is not in it (ADR 0011).
-- Deployment: browser demo on ONNX Runtime Web with a hashing text featuriser, plus a
-  FastAPI service in Docker for the full model (ADR 0008, proposed). This means the text
-  featuriser must be hash-based from the first benchmark.
+- Deployment: two targets (ADR 0008). The browser demo is a plain JavaScript port of
+  the featuriser and trees, verified against Python fixtures, with exact block-coalition
+  Shapley explanations (ADR 0012); the FastAPI service in Docker runs the full model.
+  The text featuriser is hash-based so the browser needs no vocabulary.
 
 ## How the feature pipeline works (step 3, done)
 
@@ -147,12 +158,50 @@ copy of each training row appended (its own `FeatureBlocks` fitted on the augmen
 - Per-block attributions: `booster.predict(X, pred_contrib=True)` returns a sparse
   matrix with one extra column (the expected value); pass the rest to `sum_by_block`.
 
+## How the model and export work (step 7, done)
+
+`salary_scout.models`:
+
+- `fit_models`, `evaluate`, `summarise`, `MASKS`, `LGBM_PARAMS` are the notebook code.
+- `SalaryModel(fb_kwargs, lgbm_params)`: `fit(df)` appends one dropout copy and fits
+  `FeatureBlocks` plus a `PairModel` of two LightGBMs. `predict(df, masked=[...])`
+  returns a frame of `low, high, mid, log_mid, log_spread`. `explain(df, method=
+  "tree_shap"|"coalition")` returns five block columns plus `baseline`; they sum to
+  `log_mid`. `frame_from_postings(list_of_dicts)` runs `prepare_inputs` for raw input.
+  `save`/`load` via joblib (the LightGBM factory is a class, not a lambda, for this).
+- `train_final()` fits on the train split (so the report's holdout numbers describe it)
+  and saves `models/salary_model.joblib` (6.8 MB, git-ignored). Time holdout of the
+  browser-sized model: log MAE 0.145, MAPE 13.7%, overlap 92.5%.
+
+`salary_scout.export` (ADR 0012):
+
+- `featuriser_spec(fb)` walks `fb.ct_.transformers_` and emits one entry per
+  sub-transformer: kind (`presence`, `text_hash`, `log_len`, `onehot`, `numeric`,
+  `multihot`, `target_enc`), output `start`/`width`, and fitted state. The one-hot entry
+  maps category -> offset with sklearn's ordering (frequent categories in
+  `categories_` order, then one infrequent column; unknown -> zeros; NaN is a category
+  if it was frequent at fit). The spec also carries the cleaning regexes, stop words,
+  seniority map and reference year so the JS has no constants of its own.
+- `trees_spec(booster)` flattens `dump_model()`; `predict_from_spec` is the NumPy
+  reference evaluator and `export_browser_model` refuses to write if it disagrees with
+  LightGBM. Children: index >= 0 is a node, `-(k+1)` is leaf `k`.
+- `holdout_metrics` scores all 31 block combinations on the test split; the UI quotes
+  the one in use. `build_fixtures` pulls 60 raw test postings from DuckDB (joined by
+  `requisition_id`) and records predictions per mask pattern, per-block nnz/sum of the
+  feature vector, and coalition explanations for eight rows.
+
+`web/`: `js/hash.js` (MurmurHash3 x86_32, signed, `abs(h) % n`), `js/featurizer.js`
+(`prepare` + per-block sparse featurisation, present or masked), `js/trees.js`,
+`js/model.js` (`predict`, `explain` = exact Shapley over 32 coalitions with the
+training-mean baseline, `metricsFor`), `js/app.js` (form <-> raw posting, SVG bars,
+example loader). `verify.mjs` passes 829/829 checks with zero error.
+
 ## Resume here (state at the end of the 2026-09-15 session)
 
-Steps 5 and 6 are done and committed. `notebooks/02_benchmark.ipynb` is committed with
-outputs; the second execution reproduced the result CSVs byte for byte. Next is step 7:
-move the model code into `src/` and build the browser demo (see below). The blog post is
-a first draft and will need its final section rewritten once the demo URL exists.
+Step 7 is done and committed: model code in `src/`, the browser demo in `web/`, ADR
+0012 accepted. Next is step 8, the FastAPI service (see below). Also pending: enable
+GitHub Pages (source: GitHub Actions) so `.github/workflows/pages.yml` publishes
+`web/`, then rewrite the blog's "Try it" section and the README with the live URL.
 
 ## Next steps
 
@@ -163,14 +212,23 @@ small script (session scratchpad) that maps notebook code-cell index to a slug; 
 EDA cells 9, 19, 21, 27, 30, 32, 34, 35, 36, 37, 41, 42, 43 and benchmark cells 12, 19, 22.
 If a notebook is rebuilt, re-export and check the cell indices still line up.
 
-### Step 7 and 8: apps
+### Step 7: browser demo (done)
 
-Before the apps, move `fit_models` / `PairModel` out of the notebook into
-`src/salary_scout/models.py` with a `train_final()` that saves the dropout model and its
-`FeatureBlocks`. The browser build needs: hashing featuriser reimplemented in JS
-(murmurhash3_32, sklearn's token pattern, `alternate_sign=False`, binary, l2 norm),
-the company lookup table, the top-K tool vocabulary, and the ONNX export of a smaller
-LightGBM. Confirm or supersede ADR 0008 then.
+See "How the model and export work" above and ADR 0012. If `features.py` changes,
+re-run the export and `node web/test/verify.mjs`; the fixtures are the contract.
+
+### Step 8: service deployment
+
+FastAPI app in `src/salary_scout/service.py` (or `service/`) loading
+`models/salary_model.joblib` via `SalaryModel.load()`. Endpoints: `POST /predict`
+taking a list of raw postings (the `RAW_INPUT_COLUMNS` fields from `export.py`) plus an
+optional `masked` list, returning range, targets, per-block attributions (tree SHAP by
+default, coalition on request) and the holdout error for the pattern; `GET /health`
+and `GET /schema`. Batch scoring is a loop over `frame_from_postings` in chunks.
+Dockerfile on `python:3.12-slim` with `uv sync --no-dev`; the model file is built in
+the image by running `python -m salary_scout.models` at build time (needs
+`data/derived.parquet` as a build context input) or copied in. Add `models/` to
+`.dockerignore` decisions accordingly. Write ADR 0013 for the API contract.
 
 ## Working notes for the next session
 
@@ -196,3 +254,12 @@ LightGBM. Confirm or supersede ADR 0008 then.
   (`vert=` is deprecated in matplotlib 3.11).
 - Commit after each step with the attribution line
   `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
+- `mask_blocks` casts int and bool columns to float before writing NaN: raw postings
+  from JSON arrive with `nb_employees` as int, and pandas refuses NaN in int columns.
+- Headless screenshots work with Chrome:
+  `chrome.exe --headless=new --screenshot=out.png --window-size=1200,900 --virtual-time-budget=15000 http://127.0.0.1:8000/`
+  after `python -m http.server -d web 8000`. Desktop Chrome will not go narrower than
+  about 500 px, so phone layouts cannot be checked this way.
+- Known Python/JS boundary: JS `\b` and `\d` are ASCII in the salary regex while
+  Python's are Unicode; no fixture row hits it. Node 22 is installed locally.
+- The web `fetch` of `model/` needs HTTP; `file://` fails with a clear message in the UI.

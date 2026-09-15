@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Salary Scout</title>
+<meta name="description" content="Predict the advertised salary range of a US job posting from its description and metadata, entirely in your browser, with an explanation of what drove the estimate.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💵</text></svg>">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <h1>Salary Scout</h1>
+    <p class="lede">Estimate the salary range a US employer would advertise for a job posting, from whatever you have: the description, the title, the metadata, or any mix. The model runs entirely in this page. Nothing you type leaves your browser.</p>
+  </div>
+</header>
+
+<main class="wrap layout">
+  <section class="inputs" aria-labelledby="inputs-heading">
+    <div class="inputs-top">
+      <h2 id="inputs-heading">Posting</h2>
+      <label class="sample-picker">Load an example
+        <select id="sample-select"><option value="">Choose a real posting…</option></select>
+      </label>
+    </div>
+    <p class="hint">Each block can be switched off to see how the estimate changes without it. The model was trained to cope with missing blocks, so a masked block is not "unknown", it is genuinely absent.</p>
+
+    <form id="posting-form" autocomplete="off">
+      <fieldset class="block" data-block="title">
+        <legend><span class="block-name">Title</span><label class="switch"><input type="checkbox" name="use-title" checked><span>use</span></label></legend>
+        <label>Job title<input type="text" name="title" placeholder="Senior Data Engineer"></label>
+        <label>Core title <small>the role stripped of level and specialty, as the source site labels it</small><input type="text" name="core_job_title" placeholder="Data Engineer"></label>
+      </fieldset>
+
+      <fieldset class="block" data-block="description">
+        <legend><span class="block-name">Description</span><label class="switch"><input type="checkbox" name="use-description" checked><span>use</span></label></legend>
+        <label>Description <small>paste the posting; HTML and salary figures are stripped before hashing</small><textarea name="description" rows="8" placeholder="Paste the job description…"></textarea></label>
+        <label>Requirements summary <small>optional, a sentence or two</small><textarea name="requirements_summary" rows="2"></textarea></label>
+      </fieldset>
+
+      <fieldset class="block" data-block="role_meta">
+        <legend><span class="block-name">Role metadata</span><label class="switch"><input type="checkbox" name="use-role_meta" checked><span>use</span></label></legend>
+        <div class="grid2">
+          <label>Seniority<select name="seniority_level" data-options="role_meta:onehot:seniority_level"></select></label>
+          <label>Job category<select name="job_category" data-options="role_meta:onehot:job_category"></select></label>
+          <label>Years of experience<input type="number" name="min_industry_and_role_yoe" min="0" step="1" placeholder="e.g. 5"></label>
+          <label>Management years<input type="number" name="min_management_yoe" min="0" step="1" placeholder="usually blank"></label>
+          <label>Commitment<select name="commitment" data-options="multihot:role_meta:commitment"></select></label>
+          <label>Security clearance<select name="security_clearance" data-options="role_meta:onehot:security_clearance"></select></label>
+          <label>Bachelor's<select name="bachelors_degree_requirement" data-options="role_meta:onehot:bachelors_degree_requirement"></select></label>
+          <label>Master's<select name="masters_degree_requirement" data-options="role_meta:onehot:masters_degree_requirement"></select></label>
+          <label>Doctorate<select name="doctorate_degree_requirement" data-options="role_meta:onehot:doctorate_degree_requirement"></select></label>
+          <label>Visa sponsorship<select name="visa_sponsorship" data-options="role_meta:onehot:visa_sponsorship"></select></label>
+        </div>
+        <label>Technical tools <small>comma separated</small><input type="text" name="technical_tools" placeholder="Python, SQL, Spark"></label>
+      </fieldset>
+
+      <fieldset class="block" data-block="location">
+        <legend><span class="block-name">Location</span><label class="switch"><input type="checkbox" name="use-location" checked><span>use</span></label></legend>
+        <div class="grid2">
+          <label>Workplace type<select name="workplace_type" data-options="location:onehot:workplace_type"></select></label>
+          <label>Primary state<select name="primary_state" data-options="location:onehot:primary_state"></select></label>
+          <label>Number of states listed<input type="number" name="n_states" min="0" step="1" placeholder="1"></label>
+          <label>Countries <small>comma separated codes</small><input type="text" name="workplace_countries" placeholder="US"></label>
+          <label>Latitude<input type="number" name="latitude" step="any" placeholder="optional"></label>
+          <label>Longitude<input type="number" name="longitude" step="any" placeholder="optional"></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="block" data-block="company">
+        <legend><span class="block-name">Company</span><label class="switch"><input type="checkbox" name="use-company" checked><span>use</span></label></legend>
+        <label>Employer <small>employers seen in training get their own pricing history; others get the average</small><input type="text" name="company_name" list="company-names" placeholder="Start typing…"><datalist id="company-names"></datalist></label>
+        <div class="grid2">
+          <label>Employees<input type="number" name="nb_employees" min="0" step="1" placeholder="e.g. 2500"></label>
+          <label>Year founded<input type="number" name="year_founded" min="1600" max="2026" step="1" placeholder="e.g. 2008"></label>
+          <label>Organisation type<select name="organization_type" data-options="company:onehot:organization_type"></select></label>
+          <label>Sector<select name="company_sector_and_industry" data-options="company:onehot:company_sector_and_industry"></select></label>
+          <label>HQ country<select name="hq_country" data-options="company:onehot:hq_country"></select></label>
+          <label>Applicant tracking system<select name="source" data-options="company:onehot:source"></select></label>
+        </div>
+        <label>Industries <small>comma separated</small><input type="text" name="company_industries" placeholder="Software, Cloud"></label>
+      </fieldset>
+    </form>
+  </section>
+
+  <aside class="results" aria-live="polite">
+    <div class="results-card">
+      <div id="loading" class="status">Loading the model (about 7 MB)…</div>
+      <div id="result" hidden>
+        <p class="result-label">Estimated advertised range</p>
+        <p class="range" id="range">—</p>
+        <p class="mid">Midpoint <strong id="mid">—</strong><span id="truth" class="truth" hidden></span></p>
+
+        <dl class="stats">
+          <div><dt>Typical error for these inputs</dt><dd id="mape">—</dd></div>
+          <div><dt>Ranges that overlapped the real one</dt><dd id="overlap">—</dd></div>
+        </dl>
+        <p class="hint" id="pattern-note"></p>
+
+        <h3>What moved the estimate</h3>
+        <p class="hint">Exact Shapley values over the five blocks, relative to the average posting in training. Blue raises the midpoint, red lowers it.</p>
+        <div id="attribution" class="attribution" role="img" aria-label="Contribution of each input block to the midpoint"></div>
+        <table class="sr-only" id="attribution-table"><caption>Block contributions</caption><thead><tr><th>Block</th><th>Effect on midpoint</th></tr></thead><tbody></tbody></table>
+
+        <ul class="notes" id="notes"></ul>
+      </div>
+    </div>
+    <details class="about">
+      <summary>About this model</summary>
+      <p>A gradient-boosted model (LightGBM) trained on about 20,000 US postings that disclosed a salary, published April to September 2026. Text is hashed into bag-of-words features, so no vocabulary is shipped; employer identity is a target-encoded lookup. The five blocks were randomly dropped during training so the model behaves sensibly when you switch them off.</p>
+      <p>Errors quoted above are measured on the newest 15% of postings, which the model never saw. The estimate is what a disclosing employer would <em>advertise</em>, not what a specific person would be offered. Individual-contributor roles only, mostly data, analytics and software.</p>
+      <p><a href="https://github.com/alexanderwu/salary-scout">Source, report and methodology</a>.</p>
+    </details>
+  </aside>
+</main>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

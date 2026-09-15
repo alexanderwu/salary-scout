@@ -1,7 +1,7 @@
 # 0008. Ship a browser-only demo and a separate service deployment
 
 Date: 2026-09-15
-Status: Proposed
+Status: Accepted; the ONNX Runtime choice for the browser is superseded by 0012
 
 ## Context
 

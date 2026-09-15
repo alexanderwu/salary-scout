@@ -1,0 +1,10 @@
+{
+  "name": "salary-scout-web",
+  "private": true,
+  "type": "module",
+  "description": "Browser-only Salary Scout demo: no build step, no dependencies.",
+  "scripts": {
+    "test": "node test/verify.mjs",
+    "serve": "python -m http.server 8000"
+  }
+}

@@ -102,6 +102,10 @@ def test_frame_from_postings_single_raw_posting(model):
     assert "[SALARY]" in frame.loc[0, "description_clean"]
     pred = model.predict(frame)
     assert len(pred) == 1 and pred.loc[0, "low"] > 0
+    # integer and boolean raw columns must survive masking (they cannot hold NaN natively)
+    frame = SalaryModel.frame_from_postings([{**posting, "nb_employees": 500, "is_remote": True}])
+    masked = model.predict(frame, masked=["company", "location"])
+    assert masked.loc[0, "low"] > 0
 
 
 def test_save_load_round_trip(model, toy, tmp_path):
