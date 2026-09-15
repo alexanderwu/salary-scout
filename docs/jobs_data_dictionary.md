@@ -1,6 +1,6 @@
 # Data Dictionary — `jobs.duckdb` (table: `jobs`)
 
-Source: job postings scraped from [hiringcafe.com](https://hiring.cafe). Snapshot profiled on 2026-09-15: **27,098 rows**, 33 columns.
+Source: job postings scraped from [hiringcafe.com](https://hiringcafe.com). Snapshot profiled on 2026-09-15: **27,098 rows**, 33 columns.
 
 Note: `id` is not a reliable unique row key (26,498 distinct values out of 27,098 rows — a handful of postings appear multiple times, e.g. re-scraped over time). Use `requisition_id` as the primary key; it is unique and non-null for every row.
 
