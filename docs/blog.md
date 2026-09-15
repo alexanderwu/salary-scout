@@ -123,6 +123,7 @@ jargon.
 
 ## Try it
 
-The browser demo runs entirely on your machine: nothing you type is sent anywhere. Paste a
-title, or a description, or just pick a seniority and a state, and see what changes. The
+The browser demo at [https://alexanderwu.github.io/salary-scout/](https://alexanderwu.github.io/salary-scout/) runs entirely
+on your machine: nothing you type is sent anywhere. Paste a title, or a description, or
+just pick a seniority and a state, and see what changes. The
 technical report with the full protocol and per-fold results is in `docs/report.md`.

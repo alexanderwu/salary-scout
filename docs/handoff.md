@@ -36,7 +36,7 @@ Done and committed:
 | Browser export: featuriser spec, flattened trees, metrics, fixtures | `src/salary_scout/export.py` |
 | Browser demo (static HTML, dependency-free JS) and its model files | `web/`, `web/model/` |
 | Node replay of the JS port against Python fixtures | `web/test/verify.mjs`, `tests/test_web.py` |
-| GitHub Pages workflow for `web/` (not yet enabled in repo settings) | `.github/workflows/pages.yml` |
+| GitHub Pages deploy of `web/`, live at https://alexanderwu.github.io/salary-scout/ | `.github/workflows/pages.yml` |
 | Twelve ADRs, all accepted | `docs/adr/` |
 
 Not started: the service deployment (step 8). The benchmark notebook still defines
@@ -199,9 +199,8 @@ example loader). `verify.mjs` passes 829/829 checks with zero error.
 ## Resume here (state at the end of the 2026-09-15 session)
 
 Step 7 is done and committed: model code in `src/`, the browser demo in `web/`, ADR
-0012 accepted. Next is step 8, the FastAPI service (see below). Also pending: enable
-GitHub Pages (source: GitHub Actions) so `.github/workflows/pages.yml` publishes
-`web/`, then rewrite the blog's "Try it" section and the README with the live URL.
+0012 accepted. GitHub Pages is enabled and the demo is live at https://alexanderwu.github.io/salary-scout/;
+the blog and README link to it. Next is step 8, the FastAPI service (see below).
 
 ## Next steps
 

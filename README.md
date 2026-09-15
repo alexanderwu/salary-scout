@@ -34,6 +34,8 @@ uv run jupyter lab
 
 ## Browser demo
 
+Live at [https://alexanderwu.github.io/salary-scout/](https://alexanderwu.github.io/salary-scout/), published from `web/` by GitHub Actions on every push to `main` that touches it.
+
 ```sh
 uv run python -m salary_scout.export   # refit the browser model and write web/model/ (~3 min)
 node web/test/verify.mjs               # JavaScript port must match Python on 60 fixture rows
